@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Document</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+        integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+        crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+        integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+        crossorigin=""></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.14/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.14/leaflet.draw.js"></script>
+</head>
+<!-- https://router.hereapi.com/v8/routes?transportMode=pedestrian&return=summary&origin=35.209029131097836,-0.6163117086223125&destination=35.21332,-0.61591&apiKey=J8v-uWi97tEmwpOFAur9WpkdtXY_ZvuoyfQ78Zqhh9A
+
+
+    35.209029131097836,-0.6163117086223125
+                        35.21332,-0.61591
+35.20649,-0.61903
+35.22736,-0.62714 -->
+
+<body>
+    <div id="map" style="height: 900px; width: 90%; margin-left: 10px; margin-right: 10px; background-color: white;">
+    </div>
+    <button id="A03" type="button" onclick="addBusRoute('A03');addBusStationsByNumero('A03_');
+    addBusRoute('A03 bis'); addBusStationsByNumero('A03bis_')" style="background-color: red; color: black;">Ligne A03
+    </button>
+    <button id="A03 bis" type="button" onclick="addBusRoute('A03 bis'); addBusStationsByNumero('A03bis_')"
+        style="background-color: red; color: black;">Ligne
+        A03 bis
+    </button>
+    <button id="A11" type="button" onclick="addBusRoute('A11'); addBusStationsByNumero('A11_')"
+        style="background-color: black; color: white;">Ligne A11
+    </button>
+    <button id="A16" type="button" onclick="addBusRoute('A16') ; addBusStationsByNumero('A16_')"
+        style="background-color: blue; color: white;">Ligne A16
+    </button>
+    <button id="A17" type="button" onclick="addBusRoute('A17'); addBusStationsByNumero('A17_')"
+        style="background-color: green; color: white;">Ligne A17
+    </button>
+    <button id="A22" type="button" onclick="addBusRoute('A22'); addBusStationsByNumero('A22_')"
+        style="background-color: rgb(6, 170, 108); color: white;">Ligne
+        A22
+    </button>
+    <button id="A25" type="button" onclick="addBusRoute('A25'); addBusStationsByNumero('A25_')"
+        style="background-color: rgb(255,0,255);">Ligne
+        A25
+    </button>
+    <button id="A27" type="button" onclick="addBusRoute('A27'); addBusStationsByNumero('A27_')"
+        style="background-color: rgb(0,255,255);">Ligne
+        A27
+    </button>
+
+    <button id="tramway" type="button" onclick="addSubway(); " style="background-color: #FD7F2C;">
+        Tramway
+    </button>
+    <button id="stationsSubway" type="button" onclick="addSubwayStations(); " style="background-color: #FD7F2C;">
+        Add subway stations
+    </button>
+    <button id="stations" type="button" onclick="addBusStations(); " style="background-color: #076AB0; color: white">
+        Add bus stations
+    </button>
+    <button id="clearAllTheMap" type="button" onclick="clearAllTheMap()"
+        style="background-color: white; color: black">Reset the map
+    </button>
+    <button id="clearTheRoutes" type="button" onclick="clearTheMapRoutes()"
+        style="background-color: white; color: black">Remove the routes
+    </button>
+    <button id="clearTheMarkers" type="button" onclick="clearTheMapMarkers()"
+        style="background-color: white; color: black">Remove the markers
+    </button>
+    <!-- <script type="module" src="http://127.0.0.1:8887/leaflet.js"></script> -->
+    <script>
+        function clearAllTheMap() {
+            chemin.clearLayers();
+            markers.clearLayers();
+        }
+
+        function clearTheMapRoutes() {
+            chemin.clearLayers();
+        }
+
+        function clearTheMapMarkers() {
+            markers.clearLayers();
+        }
+
+        var chemin = L.layerGroup();
+        var markers = L.layerGroup();
+        var sequence = 1;
+        var id = 0;
+        var map = L.map('map', {
+            center: [35.20118653849822, -0.6343081902114373],
+            // center: [35.217417796971496, -0.6221218677165964],
+            zoom: 14,
+            maxZoom: 19
+        });
+
+
+        L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            subdomains: ['a', 'b', 'c']
+        }).addTo(map);
+
+        let lat, lon;
+        var featureGroup = L.featureGroup().addTo(map);
+
+        var drawControl = new L.Control.Draw({
+            position: 'topright',
+            draw: {
+                polygon: false,
+                rectangle: false,
+                circle: false,
+                circlemarker: false,
+            },
+            edit: {
+                featureGroup: featureGroup
+            }
+        }).addTo(map);
+
+        map.on('draw:created', function (e) {
+            featureGroup.addLayer(e.layer);
+        }
+        );
+
+        function getLatLngs(layer) {
+            var lng, lat, chemin = [];
+            if (layer instanceof L.Polyline) {
+                var current = new Date;
+                var latlngs = layer.getLatLngs();
+                var type = prompt("Saisir le type du polyline", "Correspondance");
+                console.log("Test56 " + latlngs);
+
+                for (var i = 0; i < latlngs.length; i++) {
+                    var latlngs1 = latlngs[i];
+                    chemin.push("{\"latitude\": " + latlngs[i].lat + "," + "\"longitude\": " + latlngs[i].lng + ","
+                        + "\"ID\": " + (sequence + 1)
+                        + "," + "\"type\": \"" + type + "\"" + "}");
+                    sequence += 1;
+                    if (i === 0) {
+                        lng = latlngs[i].lng;
+                        lat = latlngs[i].lat;
+                    }
+                }
+                ;
+
+
+                const data = "[" + chemin.join(",") + "]"
+                const optionsPost = {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: data
+                };
+                const response = fetch('/subway', optionsPost);
+                console.log(data)
+                return "[" + chemin.join(",") + "]";
+            } else if (layer instanceof L.Marker) {
+
+                var nomFr = prompt("Saisir le nom de la station en Français", "");
+                var type = prompt("Saisir le type de la station", "bus");
+
+                if (nomFr != null && type != null) {
+                    layer.bindTooltip(nomFr + " " + type,
+                        {
+                            permanent: true,
+                            direction: 'right'
+                        })
+                    if (type === 'tramway') {
+                        var numero = prompt("Saisir le numero de la station", "");
+                        const data = "{\"latitude\": " + layer.getLatLng().lat + ", " + "\"longitude\" :" + layer.getLatLng().lng
+                            + ", " + "\"nomFr\": \"" + nomFr + "\"" + ", " + "\"type\": \"" + type + "\"" + ", " + "\"numero\": \"" + numero + "\"" + "}";
+                        console.log(data);
+                        id = id + 1;
+                        const optionsPost = {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: data
+                        };
+                        const response = fetch('/stations_sba', optionsPost);
+                        return "{\"latitude\": " + layer.getLatLng().lat + ", " + "\"longitude\" :" + layer.getLatLng().lng + "}";
+                    } else if (type === 'bus') {
+                        var nomligne = prompt("Saisir le numéro de la ligne", "A27");
+                        const data = "{\"latitude\": " + layer.getLatLng().lat + ", " + "\"longitude\" :" + layer.getLatLng().lng
+                            + ", " + "\"nomFr\": \"" + nomFr + "\"" + ", " + "\"type\": \"" + type + "\"" + ", " + "\"numero\": \"" + nomligne + "\"" + "}";
+                        const optionsPost = {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: data
+                        };
+                        const response = fetch('/stations_sba', optionsPost);
+                        return "{\"latitude\": " + layer.getLatLng().lat + ", " + "\"longitude\" :" + layer.getLatLng().lng + "}";
+                    }
+                }
+
+                return "{\"latitude\": " + layer.getLatLng().lat + ", " + "\"longitude\" :" + layer.getLatLng().lng + "}";
+            }
+        }
+        ;
+
+        map.on('draw:created', function (e) {
+            var layer = e.layer;
+            getLatLngs(layer)
+        });
+
+
+        async function addSubwayStations() {
+            const response = await fetch('/stations_sba/tramway');
+            const data = await response.json();
+            var subway_station = L.icon({
+                iconUrl: 'pin_subway.png',
+                iconSize: [35, 35], // size of the icon
+                iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+            });
+
+            for (item of data) {
+                var station = L.marker([item.latitude, item.longitude], { icon: subway_station }).bindPopup(
+                    "<b>" + item.nomFr + "</b>"
+                ).addTo(markers);
+                markers.addTo(map);
+            }
+
+        }
+
+        async function addBusStations() {
+            const response = await fetch('/stations_sba/bus');
+            const data = await response.json();
+            var bus_stop_icon = L.icon({
+                iconUrl: 'pin_bus.png',
+
+
+                iconSize: [35, 35], // size of the icon
+                iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+            });
+
+            for (item of data) {
+                var station = L.marker([item.latitude, item.longitude], { icon: bus_stop_icon }).bindPopup(
+                    "<b>" + item.nomFr + "</b>" + "<br>" + " <b> " + item.numero + "</b>"
+                ).addTo(markers);
+                markers.addTo(map)
+            }
+
+        }
+
+        async function addBusStationsByNumero(numero) {
+            console.log("add stations by bus number");
+            const response = await fetch('/stations_sba/bus/' + numero);
+            const data = await response.json();
+            if (numero === 'A03_') {
+                var bus_stop_icon = L.icon({
+                    iconUrl: 'pin_bus_3.png',
+                    iconSize: [35, 35], // size of the icon
+                    iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+                });
+
+            } else if (numero === 'A03bis_') {
+                var bus_stop_icon = L.icon({
+                    iconUrl: 'pin_bus_3.png',
+                    iconSize: [35, 35], // size of the icon
+                    iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+                });
+
+
+            } else if (numero === 'A11_') {
+                var bus_stop_icon = L.icon({
+                    iconUrl: 'pin_bus_11.png',
+                    iconSize: [35, 35], // size of the icon
+                    iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+                });
+            }
+            else if (numero === 'A16_') {
+                var bus_stop_icon = L.icon({
+                    iconUrl: 'pin_bus_16.png',
+                    iconSize: [35, 35], // size of the icon
+                    iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+                });
+            }
+            else if (numero === 'A17_') {
+                var bus_stop_icon = L.icon({
+                    iconUrl: 'pin_bus_17.png',
+                    iconSize: [35, 35], // size of the icon
+                    iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+                });
+            }
+            else if (numero === 'A22_') {
+                var bus_stop_icon = L.icon({
+                    iconUrl: 'pin_bus_22.png',
+                    iconSize: [35, 35], // size of the icon
+                    iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+                });
+            }
+            else if (numero === 'A25_') {
+                var bus_stop_icon = L.icon({
+                    iconUrl: 'pin_bus_25.png',
+                    iconSize: [35, 35], // size of the icon
+                    iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+                });
+            }
+            else if (numero === 'A27_') {
+                var bus_stop_icon = L.icon({
+                    iconUrl: 'pin_bus_27.png',
+                    iconSize: [35, 35], // size of the icon
+                    iconAnchor: [17.5, 35], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -30] // point from which the popup should open relative to the iconAnchor
+                });
+            }
+
+            for (item of data) {
+                var station = L.marker([item.latitude, item.longitude], { icon: bus_stop_icon })
+                    .bindPopup(
+                        "<b>" + item.nomFr + "</b>" + "<br>" + " <b> " + item.numero + "</b>"
+                    ).addTo(markers);
+                markers.addTo(map)
+            }
+
+        }
+
+        async function addBusRoute(numero) {
+            const response = await fetch('/bus/' + numero);
+            const data = await response.json();
+            for (var i = 0; i < data.length; i += 1) {
+                if ((i + 1) == data.length) {
+                } else {
+                    var pointA = new L.LatLng(data[i].latitude, data[i].longitude)
+                    var pointB = new L.LatLng(data[i + 1].latitude, data[i + 1].longitude)
+                    var pointList = [pointA, pointB];
+                    // console.log("|" + pointList + "|")
+                    if (numero === "A03") {
+                        var firstpolyline = new L.Polyline(pointList, {
+                            color: 'red',
+                            weight: 5,
+                            opacity: 0.8,
+                            dashArray: "2,5",
+                            smoothFactor: 1
+                        });
+                        firstpolyline.addTo(chemin)
+                    } else if (numero === "A03 bis") {
+                        var firstpolyline = new L.Polyline(pointList, {
+                            color: 'red',
+                            weight: 5,
+                            opacity: 0.8,
+                            dashArray: "2,5",
+                            smoothFactor: 1
+                        });
+                        firstpolyline.addTo(chemin)
+                    } else if (numero === "A11") {
+                        var firstpolyline = new L.Polyline(pointList, {
+                            color: 'black',
+                            weight: 5,
+                            opacity: 0.8,
+                            dashArray: "2,5",
+                            smoothFactor: 1
+                        });
+                        firstpolyline.addTo(chemin)
+                    } else if (numero === "A16") {
+                        var firstpolyline = new L.Polyline(pointList, {
+                            color: 'blue',
+                            weight: 5,
+                            opacity: 0.8,
+                            dashArray: "2,5",
+                            smoothFactor: 1
+                        });
+                        firstpolyline.addTo(chemin)
+                    } else if (numero === "A17") {
+                        var firstpolyline = new L.Polyline(pointList, {
+                            color: 'green',
+                            weight: 5,
+                            opacity: 0.8,
+                            dashArray: "1,5",
+                            smoothFactor: 1
+                        });
+                        firstpolyline.addTo(chemin)
+                    } else if (numero === "A25") {
+                        var firstpolyline = new L.Polyline(pointList, {
+                            color: 'rgb(255,0,255)',
+                            weight: 5,
+                            opacity: 0.8,
+                            dashArray: "2,5",
+                            smoothFactor: 1
+                        });
+                        firstpolyline.addTo(chemin)
+                    } else if (numero === "A27") {
+                        var firstpolyline = new L.Polyline(pointList, {
+                            color: 'rgb(0,255,255)',
+                            weight: 5,
+                            opacity: 0.8,
+                            dashArray: "2,5",
+                            smoothFactor: 1
+                        });
+                        firstpolyline.addTo(chemin)
+                    } else if (numero === "A22") {
+                        var firstpolyline = new L.Polyline(pointList, {
+                            color: 'rgb(6, 170, 108)',
+                            weight: 5,
+                            opacity: 0.8,
+                            dashArray: "2,5",
+                            smoothFactor: 1
+                        });
+                        firstpolyline.addTo(chemin)
+                    }
+                }
+                ;
+                chemin.addTo(map);
+                // console.log("last :"+i);
+            }
+
+        }
+
+        async function addSubway() {
+            const response = await fetch('/subway');
+            const data = await response.json();
+            for (var i = 0; i < data.length; i += 1) {
+                if ((i + 1) == data.length) {
+                } else {
+                    var pointA = new L.LatLng(data[i].latitude, data[i].longitude)
+                    var pointB = new L.LatLng(data[i + 1].latitude, data[i + 1].longitude)
+                    var pointList = [pointA, pointB];
+                    // console.log("|" + pointList + "|")
+                    var firstpolyline = new L.Polyline(pointList, {
+                        color: '#FD7F2C',
+                        weight: 5,
+                        opacity: 1,
+
+                        smoothFactor: 1
+                    });
+                    firstpolyline.addTo(chemin)
+                }
+                ;
+                // console.log("last :"+i);
+            }
+            chemin.addTo(map);
+        }
+
+        addCorrespondance();
+        async function addCorrespondance() {
+            const response = await fetch('/correspondance');
+            const data = await response.json();
+            for (var i = 0; i < data.length; i += 1) {
+                if ((i + 1) == data.length) {
+                } else {
+                    var pointA = new L.LatLng(data[i].latitude, data[i].longitude)
+                    var pointB = new L.LatLng(data[i + 1].latitude, data[i + 1].longitude)
+                    var pointList = [pointA, pointB];
+                    // console.log("|" + pointList + "|")
+                    var firstpolyline = new L.Polyline(pointList, {
+                        color: 'orange',
+                        weight: 5,
+                        opacity: 1,
+                        dashArray: "2,5",
+                        smoothFactor: 1
+                    });
+                    firstpolyline.addTo(chemin)
+                }
+                ;
+                // console.log("last :"+i);
+            }
+            chemin.addTo(map);
+        }
+        // matrice();
+        async function matrice() {
+            let compteur = 1;
+            let matrice = [];
+            const response = await fetch('/stations_sba');
+            const data = await response.json();
+            console.log(data);
+
+            for (let i = 0; i < data.length; i++) {
+                for (let j = i; j < data.length; j++) {
+                    const dataa = await fetch("https://router.hereapi.com/v8/routes?transportMode=pedestrian&return=summary&origin=" + JSON.stringify(data[i].latitude) + "," + JSON.stringify(data[i].longitude) + "&destination=" + JSON.stringify(data[j].latitude)
+                        + "," + JSON.stringify(data[j].longitude) + "&apiKey=J8v-uWi97tEmwpOFAur9WpkdtXY_ZvuoyfQ78Zqhh9A");
+
+
+                    const json = await dataa.json();
+                    let ligne =
+                        "{\"latitudedepart\": " + JSON.stringify(data[i].latitude) + ", "
+                        + "\"longitudedepart\" :" + JSON.stringify(data[i].longitude) + ", "
+                        + "\"nomFrdepart\": " + JSON.stringify(data[i].nomFr) + ", "
+                        + "\"typedepart\": " + JSON.stringify(data[i].type) + ", "
+                        + "\"numerodepart\": " + JSON.stringify(data[i].numero) + ", "
+                        + "\"latitudearrive\" :" + JSON.stringify(data[j].latitude) + ", "
+                        + "\"longitudearrive\" :" + JSON.stringify(data[j].longitude) + ", "
+                        + "\"nomFrarrive\": " + JSON.stringify(data[j].nomFr) + ", "
+                        + "\"typearrive\": " + JSON.stringify(data[j].type) + ", "
+                        + "\"numeroarrive\": " + JSON.stringify(data[j].numero) + ", "
+
+                        + "\"distance\" :" + json.routes[0].sections[0].summary.length + ", "
+                        + "\"duration\" :" + json.routes[0].sections[0].summary.duration
+                        + "}";
+                    let current = new Date;
+                    console.log(compteur++ + " | " + current.getSeconds())
+                    setTimeout(() => { console.log("World!"); }, compteur * 2000);
+                    const optionsPost = {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: ligne
+                    };
+                    const responseFinal = await fetch('/matrice', optionsPost);
+
+                }
+            }
+            // const finalData = "[" + matrice.join(",") + "]"
+            // // const finalData = "["+matrice[0]+"]"
+            // console.log(finalData)
+            // const optionsPost = {
+            //     method: 'POST',
+            //     headers: {
+            //         'Content-Type': 'application/json'
+            //     },
+            //     body: finalData
+            // };
+            // const responseFinal = await fetch('/matrice', optionsPost);
+            // // console.log(finalData);
+        }
+        ;
+
+    </script>
+
+    <script>
+        let response;
+        let data;
+        let matriceTramway = [105, 94, 98, 224, 100, 100, 95, 200, 120, 110, 150, 145, 120, 122, 85, 103, 78, 87, 110, 130, 130];
+        let matrix = Array(113).fill(0).map(() => Array(113).fill(0));
+        async function fillStationsDistTimeMatrix() {
+            let sequence = 0;
+
+            response = await fetch('/matrice');
+            data = await response.json();
+
+            let response2 = await fetch('/stations_sba/tramway');
+            let data2 = await response2.json();
+
+            let response3 = await fetch('/stations_sba/bus')
+            let data3 = await response3.json();
+
+            les_stations = [];
+            for (let i = 0; i < data2.length - 1; i++) {
+                les_stations.push([0])
+                les_stations[i][0] = data2[i];
+                les_stations[i][1] = data2[i + 1];
+                les_stations[i][2] = matriceTramway[i];
+            }
+            // console.table(les_stations)
+
+
+            for (let i = 0; i < matrix.length; i++) {
+                for (j = i; j < matrix.length; j++) {
+                    json = JSON.parse(JSON.stringify(data[sequence]));
+                    matrix[i][j] = '{"nomdepart":"' + json.nomFrdepart + '",'
+                        + '"numerodepart":"' + json.numerodepart + '",'
+                        + '"nomarrive":"' + json.nomFrarrive + '",'
+                        + '"numeroarrive":"' + json.numeroarrive + '",'
+                        + '"distance":' + json.distance + ", "
+                        + '"timewalk":' + json.duration + "}";
+
+                    matrix[j][i] = '{"nomarrive":"' + json.nomFrarrive + '",'
+                        + '"numeroarrive":"' + json.numeroarrive + '",'
+                        + '"nomdepart":"' + json.nomFrdepart + '",'
+                        + '"numerodepart":"' + json.numerodepart + '",'
+                        + '"distance":' + json.distance + ", "
+                        + '"timewalk":' + json.duration + "}";
+                    sequence++;
+                }
+            }
+
+            for (let i = 0; i < matrix.length; i++) {
+                let iteratorTramway = 0;
+                for (let j = 0; j < matrix.length; j++) {
+                    if (!JSON.parse(matrix[i][j]).numerodepart.includes('A') & !JSON.parse(matrix[i][j]).numeroarrive.includes('A')) {
+                        if ((JSON.parse(matrix[i][j]).numerodepart == JSON.parse(JSON.stringify(data2[iteratorTramway])).numero &&
+                            JSON.parse(matrix[i][j]).numeroarrive == JSON.parse(JSON.stringify(data2[iteratorTramway + 1])).numero)) {
+                            let slice = "";
+                            slice = matrix[i][j].slice(-1)
+                            matrix[i][j] = matrix[i][j].replace(slice, ',"timetramway":' + matriceTramway[iteratorTramway] + ', "timebus":' + 99999 + "}");
+                        }
+                        // else {
+                        //     let slice = "";
+                        //     slice = matrix[i][j].slice(-1)
+                        //     matrix[i][j] = matrix[i][j].replace(slice, ',"timetramway":' + 99999 + ', "timebus":' + 99999 + "}");
+                        // }
+                    }
+                    iteratorTramway++;
+                    if (iteratorTramway == data2.length - 1) iteratorTramway = 0;
+                }
+            }
+            let compteurBus = 0;
+            for (let i = 0; i < matrix.length; i++) {
+                let iteratorBus = 0;
+                for (let j = 0; j < matrix.length; j++) {
+                    if (JSON.parse(matrix[i][j]).numerodepart.includes('A') & JSON.parse(matrix[i][j]).numeroarrive.includes('A')) {
+                        if ((JSON.parse(matrix[i][j]).numerodepart == JSON.parse(JSON.stringify(data3[iteratorBus])).numero
+                            && JSON.parse(matrix[i][j]).numeroarrive == JSON.parse(JSON.stringify(data3[iteratorBus + 1])).numero)) {
+                            let slice = "";
+                            slice = matrix[i][j].slice(-1)
+                            matrix[i][j] = matrix[i][j].replace(slice, ',"timetramway":' + 99999 + ', "timebus":' + 150 + "}");
+                        }
+                        //     else {
+                        //         let slice = "";
+                        //         slice = matrix[i][j].slice(-1)
+                        //         matrix[i][j] = matrix[i][j].replace(slice, ',"timetramway":' + 99999 + ', "timebus":' + 99999 + "}");
+                        //     }
+                        //     iteratorBus++;
+                        //     if (iteratorBus == data3.length - 1) iteratorBus = 0;
+                        // }
+                    }
+                }
+            }
+
+            for (let i = 0; i < matrix.length; i++) {
+                // let itertaor = 0;
+                for (let j = 0; j < matrix.length; j++) {
+                    if ((JSON.parse(matrix[i][j]).numerodepart.includes('A') && !JSON.parse(matrix[i][j]).numeroarrive.includes('A'))
+                        ||
+                        (!JSON.parse(matrix[i][j]).numerodepart.includes('A') && JSON.parse(matrix[i][j]).numeroarrive.includes('A'))
+                    ) {
+                        {
+                            let slice = "";
+                            slice = matrix[i][j].slice(-1)
+                            matrix[i][j] = matrix[i][j].replace(slice, ',"timetramway":' + 99999 + ', "timebus":' + 99999 + "}");
+                        }
+                    }
+                }
+            }
+            console.log(JSON.stringify(matrix[15]))
+        }
+        // fillStationsDistTimeMatrix();
+
+
+        let tramwayMatrix = Array(22).fill(0).map(() => Array(22).fill(0));
+        async function tramwayRoutingMatrix() {
+            let sequence = 0;
+
+            response = await fetch('/matrice');
+            data = await response.json();
+
+            let response2 = await fetch('/stations_sba/tramway');
+            let data2 = await response2.json();
+
+            let response3 = await fetch('/stations_sba/bus')
+            let data3 = await response3.json();
+
+            les_stations = [];
+            for (let i = 0; i < data2.length - 1; i++) {
+                les_stations.push([0])
+                les_stations[i][0] = data2[i];
+                les_stations[i][1] = data2[i + 1];
+                les_stations[i][2] = matriceTramway[i];
+            }
+            // console.table(les_stations)
+
+
+            for (let i = 0; i < matrix.length; i++) {
+                for (j = i; j < matrix.length; j++) {
+                    json = JSON.parse(JSON.stringify(data[sequence]));
+                    matrix[i][j] = '{"nomdepart":"' + json.nomFrdepart + '",'
+                        + '"numerodepart":"' + json.numerodepart + '",'
+                        + '"nomarrive":"' + json.nomFrarrive + '",'
+                        + '"numeroarrive":"' + json.numeroarrive + '",'
+                        + '"distance":' + json.distance + ", "
+                        + '"timewalk":' + json.duration + "}";
+
+                    matrix[j][i] = '{"nomarrive":"' + json.nomFrarrive + '",'
+                        + '"numeroarrive":"' + json.numeroarrive + '",'
+                        + '"nomdepart":"' + json.nomFrdepart + '",'
+                        + '"numerodepart":"' + json.numerodepart + '",'
+                        + '"distance":' + json.distance + ", "
+                        + '"timewalk":' + json.duration + "}";
+                    sequence++;
+                }
+            }
+
+            for (let i = 0; i < tramwayMatrix.length; i++) {
+                let iteratorTramway = 0;
+                for (let j = 0; j < tramwayMatrix.length; j++) {
+                    if (!JSON.parse(tramwayMatrix[i][j]).numerodepart.includes('A') & !JSON.parse(tramwayMatrix[i][j]).numeroarrive.includes('A')) {
+                        if ((JSON.parse(matrix[i][j]).numerodepart == JSON.parse(JSON.stringify(data2[iteratorTramway])).numero &&
+                            JSON.parse(matrix[i][j]).numeroarrive == JSON.parse(JSON.stringify(data2[iteratorTramway + 1])).numero)) {
+                            let slice = "";
+                            slice = matrix[i][j].slice(-1)
+                            matrix[i][j] = matrix[i][j].replace(slice, ',"timetramway":' + matriceTramway[iteratorTramway]+"}");
+                        }
+                        // else {
+                        //     let slice = "";
+                        //     slice = matrix[i][j].slice(-1)
+                        //     matrix[i][j] = matrix[i][j].replace(slice, ',"timetramway":' + 99999 + ', "timebus":' + 99999 + "}");
+                        // }
+                    }
+                    iteratorTramway++;
+                    if (iteratorTramway == data2.length - 1) iteratorTramway = 0;
+                }
+            }
+        }
+
+
+
+
+
+
+        // matriceTramway = [105, 94, 98, 224, 100, 100, 95, 200, 120, 110, 150, 145, 120, 122, 85, 103, 78, 87, 110, 130, 130];
+        // let tableau = []
+        // async function fill2DimensionsArray(arr, ligne) {
+
+        //     if (ligne === 'tramway') response = await fetch('/stations_sba/tramway');
+        //     else if (ligne === 'A03') response = await fetch('/stations_sba/bus/A03_');
+        //     else if (ligne === 'A03bis') response = await fetch('/stations_sba/bus/A03bis_');
+        //     else if (ligne === 'A11') response = await fetch('/stations_sba/bus/A11_');
+        //     else if (ligne === 'A16') response = await fetch('/stations_sba/bus/A16_');
+        //     else if (ligne === 'A17') response = await fetch('/stations_sba/bus/A17_');
+        //     else if (ligne === 'A22') response = await fetch('/stations_sba/bus/A22_');
+        //     else if (ligne === 'A25') response = await fetch('/stations_sba/bus/A25_');
+        //     else if (ligne === 'A27') response = await fetch('/stations_sba/bus/A27_');
+        //     data = await response.json();
+        //     // console.log(data)
+        //     let sequence = 0;
+        //     let columns = 4;
+        //     let rows = data.length - 1;
+        //     arr = Array(rows).fill(0).map(() => Array(columns).fill(0));
+        //     // console.log(data.length + " | ")
+        //     // console.log(data)
+
+        //     for (let i = 0; i < rows; i++) {
+        //         arr[i][0] = "Station A";
+        //         arr[i][1] = "Station B";
+        //         arr[i][2] = 0;
+        //         arr[i][3] = 0;
+        //     }
+
+        //     for (let i = 0; i < rows; i++) {
+        //         json = JSON.parse(JSON.stringify(data[sequence]));
+        //         arr[i][0] = json.nomFr;
+        //         sequence++;
+        //         json = JSON.parse(JSON.stringify(data[sequence]));
+        //         arr[i][1] = json.nomFr;
+        //         if (ligne === 'tramway')
+        //             arr[i][2] = matriceTramway[i];
+        //         else arr[i][2] = 150;
+        //     }
+
+        //     for (let i = 0; i < rows; i++) {
+        //         for (let j = 0; j < i; j++) {
+        //             arr[i][3] = arr[j][2] + arr[i][3]
+        //         }
+        //     }
+        //     console.log(arr)
+        // }
+        // let lignes = ['tramway', 'A03', 'A03bis', 'A11', 'A16', 'A17', 'A22', 'A25', 'A27']
+        // for (let i = 0; i < lignes.length; i++) {
+        //     setTimeout(function timer() {
+        //         fill2DimensionsArray(tableau, lignes[i]);
+        //     }, i * 1000);
+        // }
+
+
+
+    </script>
+</body>
+
+</html>
